@@ -1,6 +1,6 @@
 {
   "name": "homebridge-fibaro-hc2",
-  "version": "2.2.8",
+  "version": "2.3.1",
   "description": "Homebridge plugin for Fibaro Home Center 2 ",
   "note": "peerDependencies is hardcoded to peerDepdendencies in homebridge!!!",
   "main": "dist/index.js",
@@ -24,10 +24,14 @@
     "homekit",
     "z-wave",
     "Siri"
+
   ],
   "dependencies": {
+    "@types/node": "^13.13.2",
     "request": "^2.88.0",
-    "typescript": "^2.2.2"
+    "typescript": "^2.2.2",
+    "moment": "^2.24.0",
+    "fakegato-history": "^0.5.6"
   },
   "devDependencies": {},
   "author": "ilcato",
