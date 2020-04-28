@@ -35,13 +35,13 @@ export class Poller {
 		this.hapService = hapService;
 		this.hapCharacteristic = hapCharacteristic;
 	}
-	
+
 	poll() {
-		if(this.pollingUpdateRunning ) {
+		if (this.pollingUpdateRunning) {
 			return;
 		}
 		this.pollingUpdateRunning = true;
-	
+
 		this.platform.fibaroClient.refreshStates(this.lastPoll)
 			.then((updates) => {
 				if (updates.last != undefined)
@@ -55,7 +55,7 @@ export class Poller {
 							this.manageValue(change);
 						} else if (change.color != undefined) {
 							this.manageColor(change);
-						} 
+						}
 					});
 				}
 				if (updates.events != undefined) {
@@ -76,20 +76,20 @@ export class Poller {
 							if (c.value != statec)
 								c.updateValue(statec);
 						})
-						.catch((err) =>{
-							this.platform.log("There was a problem getting value from Global Variable: SecuritySystem", ` - Err: ${err}` );
+						.catch((err) => {
+							this.platform.log("There was a problem getting value from Global Variable: SecuritySystem", ` - Err: ${err}`);
 						});
 				}
 				// Manage global variable switches
 				if (this.platform.config.switchglobalvariables != "") {
 					let globalVariables = this.platform.config.switchglobalvariables.split(',');
-					for(let i = 0; i < globalVariables.length; i++) {
+					for (let i = 0; i < globalVariables.length; i++) {
 						this.platform.fibaroClient.getGlobalVariable(globalVariables[i])
 							.then((switchStatus) => {
 								this.platform.getFunctions.getBool(null, this.searchCharacteristic(globalVariables[i]), null, null, switchStatus);
 							})
-							.catch((err) =>{
-								this.platform.log("There was a problem getting value from Global Variable: ", `${globalVariables[i]} - Err: ${err}` );
+							.catch((err) => {
+								this.platform.log("There was a problem getting value from Global Variable: ", `${globalVariables[i]} - Err: ${err}`);
 							});
 					}
 				}
@@ -99,23 +99,35 @@ export class Poller {
 				if (err == 400) {
 					this.lastPoll = 0;
 				}
-		});
+			});
 		this.pollingUpdateRunning = false;
-		setTimeout( () => { this.poll()}, this.pollerPeriod * 1000);
+		setTimeout(() => { this.poll() }, this.pollerPeriod * 1000);
 	}
-	
+
 	manageValue(change) {
 		for (let i = 0; i < this.platform.updateSubscriptions.length; i++) {
 			let subscription = this.platform.updateSubscriptions[i];
 			let property = subscription.property;
 			if (property === "valueandcolor") property = "value";
 			if (subscription.id == change.id && ((property == "value" && change.value != undefined) || (property == "value2" && change.value2 != undefined))) {
+				this.platform.log(`id:${change.id} deviceType: ${subscription.characteristic.displayName}, value: ${change.value}, type: ${typeof (change.value)}`);
+
 				if (this.platform.config.FibaroTemperatureUnit == "F") {
 					if (subscription.characteristic.displayName == "Current Temperature") {
-						this.platform.updateFakeGatoById(subscription.id, change.value)
 						change.value = (change.value - 32) * 5 / 9;
+						this.platform.updateFakeGatoById(subscription.id, change.value, 'temp');
 					}
+				} else {
+					this.platform.updateFakeGatoById(subscription.id, change.value);
 				}
+
+				if (subscription.characteristic.displayName == "Motion Detected") {
+					this.platform.updateFakeGatoById(subscription.id, change.value, 'motion');
+				}
+				if (subscription.characteristic.displayName == "Current Relative Humidity") {
+					this.platform.updateFakeGatoById(subscription.id, change.value, 'humidity');
+				}
+
 				let changePropertyValue = change[property];
 				this.platform.log(`Updating ${property} for device: `, `${subscription.id}  parameter: ${subscription.characteristic.displayName}, ${property}: ${changePropertyValue}`);
 				if (this.platform.config.enableIFTTTnotification == "all" || this.platform.config.enableIFTTTnotification == "hc")
@@ -125,7 +137,7 @@ export class Poller {
 					getFunction.function.call(this.platform.getFunctions, null, subscription.characteristic, subscription.service, null, change);
 			}
 		}
-	}	
+	}
 
 	manageColor(change) {
 		for (let i = 0; i < this.platform.updateSubscriptions.length; i++) {
@@ -138,8 +150,8 @@ export class Poller {
 					subscription.characteristic.updateValue(Math.round(hsv.h));
 				else if (subscription.characteristic.UUID == (new this.hapCharacteristic.Saturation()).UUID)
 					subscription.characteristic.updateValue(Math.round(hsv.s));
-//				else if (subscription.characteristic.UUID == (new this.hapCharacteristic.Brightness()).UUID)
-//					subscription.characteristic.updateValue(Math.round(hsv.v));
+				//				else if (subscription.characteristic.UUID == (new this.hapCharacteristic.Brightness()).UUID)
+				//					subscription.characteristic.updateValue(Math.round(hsv.v));
 			}
 		}
 	}
@@ -154,7 +166,7 @@ export class Poller {
 					getFunction.function.call(this.platform.getFunctions, null, subscription.characteristic, subscription.service, null, null);
 			}
 		}
-	}	
+	}
 
 	searchCharacteristic(globalVariablesID) {
 		let a = this.platform.accessories.get(globalVariablesID + "0");

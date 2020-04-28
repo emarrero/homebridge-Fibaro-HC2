@@ -123,7 +123,7 @@ class FibaroHC2 {
 		this.securitySystemScenes = {};
 		this.securitySystemService = {};
 		this.config = config;
-		
+
 		if (!config) {
 			this.log('Fibaro HC2 configuration:', 'cannot find configuration for the plugin');
 			return;
@@ -154,7 +154,7 @@ class FibaroHC2 {
 		if (this.config.storage == undefined)
 			this.config.storage = "fs";
 		if (this.config.refresh == undefined)
-			this.config.refresh = 60;
+			this.config.refresh = 5;
 		this.fibaroClient = new FibaroClient(this.config.host, this.config.username, this.config.password);
 		if (pollerPeriod != 0)
 			this.poller = new Poller(this, pollerPeriod, Service, Characteristic);
@@ -277,12 +277,28 @@ class FibaroHC2 {
 		this.log("Added/changed accessory: ", shadowAccessory.name);
 		if (shadowAccessory.accessory.getService(shadowAccessory.hapService.TemperatureSensor)) {
 			shadowAccessory.accessory.log = this.log;
-			shadowAccessory.accessory.loggingService = new FakeGatoHistoryService("weather", shadowAccessory.accessory,{
+			shadowAccessory.accessory.loggingService = new FakeGatoHistoryService("weather", shadowAccessory.accessory, {
 				storage: this.config.storage,
-				minutes: 1});
+				minutes: this.config.refresh
+			});
 			let did = shadowAccessory.device.id.toString();
 			this.accessoriesFakeGato[did] = shadowAccessory;
-			
+		} else if (shadowAccessory.accessory.getService(shadowAccessory.hapService.HumiditySensor)) {
+			shadowAccessory.accessory.log = this.log;
+			shadowAccessory.accessory.loggingService = new FakeGatoHistoryService("weather", shadowAccessory.accessory, {
+				storage: this.config.storage,
+				minutes: this.config.refresh
+			});
+			let did = shadowAccessory.device.id.toString();
+			this.accessoriesFakeGato[did] = shadowAccessory;
+		} else if (shadowAccessory.accessory.getService(shadowAccessory.hapService.MotionSensor)) {
+			shadowAccessory.accessory.log = this.log;
+			shadowAccessory.accessory.loggingService = new FakeGatoHistoryService("motion", shadowAccessory.accessory, {
+				storage: this.config.storage,
+				minutes: this.config.refresh
+			});
+			let did = shadowAccessory.device.id.toString();
+			this.accessoriesFakeGato[did] = shadowAccessory;
 		}
 	}
 
@@ -384,7 +400,10 @@ class FibaroHC2 {
 						if (this.config.FibaroTemperatureUnit == "F") {
 							if (characteristic.displayName == 'Current Temperature') {
 								properties.value = (properties.value - 32) * 5 / 9;
+								this.updateFakeGatoById(IDs[0], properties.value, 'temp');
 							}
+						} else {
+							this.updateFakeGatoById(IDs[0], properties.value, 'temp')
 						}
 						getFunction.function.call(this.getFunctions, callback, characteristic, service, IDs, properties);
 					}
@@ -423,12 +442,33 @@ class FibaroHC2 {
 
 		return siblings;
 	}
-	updateFakeGatoById(id, val) {
+	updateFakeGatoById(id: number, val: any, atype: string) {
+		// console.log(`id: ${id}, value:${val}, type:${typeof (val)}, accessoryType:${atype}`);
 		let shadowAccessory = this.accessoriesFakeGato[id.toString()];
-		shadowAccessory.accessory.loggingService.addEntry({
-			time: moment().unix(),
-			temp: val});
+		if (atype == 'motion') {
+			let motion: number
+			if (val == 'true') {
+				motion = 1
+			} else {
+				motion = 0
+			}
+			shadowAccessory.accessory.loggingService.addEntry({
+				time: moment().unix(),
+				status: motion
+			});
+		} else if (atype == 'temp') {
+			shadowAccessory.accessory.loggingService.addEntry({
+				time: moment().unix(),
+				temp: val
+			});
+		} else if (atype == 'humidity') {
+			shadowAccessory.accessory.loggingService.addEntry({
+				time: moment().unix(),
+				humidity: val
+			});
+		}
 	}
+
 	notifyIFTTT(e, val1, val2, val3) {
 		if (this.config.IFTTTmakerkey == "") return;
 		if (val2 == undefined) val2 = "";
